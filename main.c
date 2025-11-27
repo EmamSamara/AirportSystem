@@ -186,13 +186,21 @@ int main() {
 }
 
             case 2: {
-                // إضافة راكب
-                if (arrivalCount > 0) {
-                    addPassenger(arrivals[0], "Ahmed", "123123");
-                    printf("Passenger added.\n");
-                }
-                break;
-            }
+    if (arrivalCount > 0) {
+        char name[64], passport[32];
+        printf("Enter passenger name: ");
+        scanf("%s", name);
+        printf("Enter passport number: ");
+        scanf("%s", passport);
+
+        addPassenger(arrivals[0], name, passport);
+        printf("Passenger %s added to flight %s.\n", name, arrivals[0]->id);
+    } else {
+        printf("No arrival flights available to add passenger.\n");
+    }
+    break;
+}
+
             case 3:
                 landFlight(arrivals, &arrivalCount, emergencies, &emergencyCount);
                 break;
