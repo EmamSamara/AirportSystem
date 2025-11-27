@@ -77,40 +77,147 @@ void printFlightDetail(Flight* f) {
 
 
 
+// إضافة رحلة لقائمة (enqueue)
+void enqueueFlight(Flight* flights[], int* count, Flight* f) {
+    flights[(*count)++] = f;
+}
+
+// إزالة أول رحلة من القائمة (dequeue)
+Flight* dequeueFlight(Flight* flights[], int* count) {
+    if (*count == 0) return NULL;
+    Flight* f = flights[0];
+    for (int i = 1; i < *count; i++) {
+        flights[i-1] = flights[i];
+    }
+    (*count)--;
+    return f;
+}
+
+// هبوط رحلة (الأولوية للطوارئ)
+void landFlight(Flight* arrivals[], int* arrivalCount,
+                Flight* emergencies[], int* emergencyCount) {
+    Flight* f = NULL;
+
+    if (*emergencyCount > 0) {
+        f = dequeueFlight(emergencies, emergencyCount);
+    } else if (*arrivalCount > 0) {
+        f = dequeueFlight(arrivals, arrivalCount);
+    }
+
+    if (f != NULL) {
+        f->status = LANDED;
+        printf("Flight %s has LANDED.\n", f->id);
+    } else {
+        printf("No flights available to land.\n");
+    }
+}
+
+// إقلاع رحلة
+void departFlight(Flight* departures[], int* departureCount) {
+    if (*departureCount == 0) {
+        printf("No flights available to depart.\n");
+        return;
+    }
+
+    Flight* f = dequeueFlight(departures, departureCount);
+    f->status = DEPARTED;
+    printf("Flight %s has DEPARTED.\n", f->id);
+}
+
+// إلغاء رحلة
+void cancelFlight(Flight* f, Flight* removed[], int* removedCount) {
+    f->status = CANCELLED;
+    enqueueFlight(removed, removedCount, f);
+    printf("Flight %s has been CANCELLED.\n", f->id);
+}
+
+void showMenu(){
+printf("..........Airport System.............. \n");
+printf("1. add a flight \n ");
+printf("2. add passenger to flight \n");
+
+printf("3. land a flight \n");
+
+printf("4. Depart a flight");
+
+printf("5. Cancel a flight \n");
+printf("6. show arrivals \n");
+printf("7.exit \n");
+printf("choose an option : ");
 
 
 
+}
 
 
 
+int main() {
+    Flight* arrivals[100]; int arrivalCount = 0;
+    Flight* departures[100]; int departureCount = 0;
+    Flight* emergencies[100]; int emergencyCount = 0;
+    Flight* removed[100]; int removedCount = 0;
 
-int main()
-{
-    Flight*arrivals[100];
-    int arrivalCount=0;
+    int choice;
+    do {
+        showMenu();
+        scanf("%d", &choice);
 
-    Flight*departures[100];
-    int departureCount=0;
+        switch(choice) {
+            case 1: {
+    char id[16], date[16], time[8];
+    int state;
+    printf("Enter Flight ID: ");
+    scanf("%s", id);
+    printf("Enter Flight State (0=ARRIVAL,1=DEPARTURE,2=EMERGENCY): ");
+    scanf("%d", &state);
+    printf("Enter Date (dd-mm-yyyy): ");
+    scanf("%s", date);
+    printf("Enter Time (hh:mm): ");
+    scanf("%s", time);
 
-    Flight*emergencies[100];
-    int emergencyCount=0;
+    Flight* f = createFlight(id, (FlightState)state, date, time);
 
-    Flight*removed[100];
-    int removedCount=0;
+    if (state == ARRIVAL) enqueueFlight(arrivals, &arrivalCount, f);
+    else if (state == DEPARTURE) enqueueFlight(departures, &departureCount, f);
+    else enqueueFlight(emergencies, &emergencyCount, f);
 
-   // إنشاء رحلة جديدة
-    Flight* f1 = createFlight("AMM220", ARRIVAL, "20-12-2025", "23:00");
+    printf("Flight %s added.\n", id);
+    break;
+}
 
-    // إضافة ركاب
-    addPassenger(f1, "Ahmed", "123123");
-    addPassenger(f1, "Sara", "456456");
-
-    // تخزين الرحلة في قائمة الوصول
-    arrivals[arrivalCount++] = f1;
-
-    // طباعة تفاصيل الرحلة
-    printFlightDetail(f1);
-
+            case 2: {
+                // إضافة راكب
+                if (arrivalCount > 0) {
+                    addPassenger(arrivals[0], "Ahmed", "123123");
+                    printf("Passenger added.\n");
+                }
+                break;
+            }
+            case 3:
+                landFlight(arrivals, &arrivalCount, emergencies, &emergencyCount);
+                break;
+            case 4:
+                departFlight(departures, &departureCount);
+                break;
+            case 5:
+                if (arrivalCount > 0) {
+                    cancelFlight(arrivals[0], removed, &removedCount);
+                    // إزالة من قائمة الوصول
+                    dequeueFlight(arrivals, &arrivalCount);
+                }
+                break;
+            case 6:
+                for (int i = 0; i < arrivalCount; i++) {
+                    printFlightDetail(arrivals[i]);
+                }
+                break;
+            case 7:
+                printf("Exiting program...\n");
+                break;
+            default:
+                printf("Invalid choice.\n");
+        }
+    } while (choice != 7);
 
     return 0;
 }
