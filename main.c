@@ -2,6 +2,11 @@
 #include <stdlib.h>
 #include <string.h>
 
+//Name : Emam Samara
+//ID : 1220022
+//section : 1
+
+
 
  typedef enum {ARRIVAL ,DEPARTURE, EMERGENCY} FlightState;
 typedef enum {ACTIVE, LANDED, DEPARTED, CANCELLED} FlightStatus;
@@ -138,12 +143,13 @@ printf("2. add passenger to flight \n");
 printf("3. land a flight \n");
 printf("4. Depart a flight");
 printf("5. Cancel a flight \n");
-printf("6. show arrivals \n");
+printf("6. show all flights (arrivals, departure, emergency) \n");
 printf("7. show flight detail by ID \n");
 printf("8. Show passengers of a flight\n");
 printf("9. Add passenger to a flight by ID\n");
 printf("10. Remove passenger from a flight\n");
-printf("11.exit \n");
+printf("11. show flight status \n");
+printf("12.exit \n");
 printf("choose an option : ");
 
 
@@ -206,6 +212,18 @@ void loadPassengers(const char* filename,
 
     fclose(file);
 }
+
+
+int countPassengers(Flight* f) {
+    int count = 0;
+    Passenger* current = f->header;
+    while (current != NULL) {
+        count++;
+        current = current->next;
+    }
+    return count;
+}
+
 
 void removePassenger(Flight* f, const char* passport) {
     Passenger* current = f->header;
@@ -297,11 +315,24 @@ loadPassengers("passengers.txt", arrivals, arrivalCount, departures, departureCo
                     dequeueFlight(arrivals, &arrivalCount);
                 }
                 break;
-            case 6:
-                for (int i = 0; i < arrivalCount; i++) {
-                    printFlightDetail(arrivals[i]);
-                }
-                break;
+            case 6: {
+    printf("=== Arrivals ===\n");
+    for (int i = 0; i < arrivalCount; i++) {
+        printFlightDetail(arrivals[i]);
+    }
+
+    printf("\n=== Departures ===\n");
+    for (int i = 0; i < departureCount; i++) {
+        printFlightDetail(departures[i]);
+    }
+
+    printf("\n=== Emergencies ===\n");
+    for (int i = 0; i < emergencyCount; i++) {
+        printFlightDetail(emergencies[i]);
+    }
+    break;
+}
+
             case 7: {
     char searchID[16];
     printf("Enter Flight ID: ");
@@ -392,17 +423,43 @@ case 10: {
     break;
 }
 
+case 11: {
+    printf("=== Active Flights ===\n");
+    for (int i = 0; i < arrivalCount; i++)
+        if (arrivals[i]->status == ACTIVE)
+            printf("%s %s %s | Passengers: %d\n",
+                   arrivals[i]->id, arrivals[i]->date, arrivals[i]->time,
+                   countPassengers(arrivals[i]));
+    for (int i = 0; i < departureCount; i++)
+        if (departures[i]->status == ACTIVE)
+            printf("%s %s %s | Passengers: %d\n",
+                   departures[i]->id, departures[i]->date, departures[i]->time,
+                   countPassengers(departures[i]));
+
+    printf("\n=== Emergency Flights ===\n");
+    for (int i = 0; i < emergencyCount; i++)
+        printf("%s %s %s | Passengers: %d\n",
+               emergencies[i]->id, emergencies[i]->date, emergencies[i]->time,
+               countPassengers(emergencies[i]));
+
+    printf("\n=== Cancelled/Departed Flights ===\n");
+    for (int i = 0; i < removedCount; i++)
+        printf("%s %s %s | Status: %d | Passengers: %d\n",
+               removed[i]->id, removed[i]->date, removed[i]->time,
+               removed[i]->status, countPassengers(removed[i]));
+    break;
+}
 
 
 
 
-            case 11:printf("Exiting program...\n");
+            case 12:printf("Exiting program...\n");
                 break;
 
             default:
                 printf("Invalid choice.\n");
         }
-    } while (choice != 11);
+    } while (choice != 12);
 
     return 0;
 }
