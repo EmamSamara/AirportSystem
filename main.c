@@ -156,10 +156,7 @@ printf("choose an option : ");
 
 }
 
-void loadFlights(const char* filename,
-                 Flight* arrivals[], int* arrivalCount,
-                 Flight* departures[], int* departureCount,
-                 Flight* emergencies[], int* emergencyCount) {
+void loadFlights(const char* filename, Queue* arrivals, Queue* departures, Queue* emergencies) {
     FILE* file = fopen(filename, "r");
     if (!file) {
         printf("Error opening %s\n", filename);
@@ -174,19 +171,15 @@ void loadFlights(const char* filename,
 
         Flight* f = createFlight(id, state, date, time);
 
-        if (state == ARRIVAL) arrivals[(*arrivalCount)++] = f;
-        else if (state == DEPARTURE) departures[(*departureCount)++] = f;
-        else emergencies[(*emergencyCount)++] = f;
+        if (state == ARRIVAL) enqueue(arrivals, f);
+        else if (state == DEPARTURE) enqueue(departures, f);
+        else enqueue(emergencies, f);
     }
 
     fclose(file);
 }
 
-
-void loadPassengers(const char* filename,
-                    Flight* arrivals[], int arrivalCount,
-                    Flight* departures[], int departureCount,
-                    Flight* emergencies[], int emergencyCount) {
+void loadPassengers(const char* filename, Queue* arrivals, Queue* departures, Queue* emergencies) {
     FILE* file = fopen(filename, "r");
     if (!file) {
         printf("Error opening %s\n", filename);
@@ -197,13 +190,15 @@ void loadPassengers(const char* filename,
     while (fscanf(file, "%[^;];%[^;];%s\n", name, passport, flightID) == 3) {
         Flight* target = NULL;
 
-        // ابحث عن الرحلة المناسبة حسب الـ FlightID
-        for (int i = 0; i < arrivalCount; i++)
-            if (strcmp(arrivals[i]->id, flightID) == 0) target = arrivals[i];
-        for (int i = 0; i < departureCount; i++)
-            if (strcmp(departures[i]->id, flightID) == 0) target = departures[i];
-        for (int i = 0; i < emergencyCount; i++)
-            if (strcmp(emergencies[i]->id, flightID) == 0) target = emergencies[i];
+        for (int i = 0; i < arrivals->size; i++)
+            if (strcmp(arrivals->items[(arrivals->front + i) % arrivals->capacity]->id, flightID) == 0)
+                target = arrivals->items[(arrivals->front + i) % arrivals->capacity];
+        for (int i = 0; i < departures->size; i++)
+            if (strcmp(departures->items[(departures->front + i) % departures->capacity]->id, flightID) == 0)
+                target = departures->items[(departures->front + i) % departures->capacity];
+        for (int i = 0; i < emergencies->size; i++)
+            if (strcmp(emergencies->items[(emergencies->front + i) % emergencies->capacity]->id, flightID) == 0)
+                target = emergencies->items[(emergencies->front + i) % emergencies->capacity];
 
         if (target) {
             addPassenger(target, name, passport);
@@ -212,6 +207,7 @@ void loadPassengers(const char* filename,
 
     fclose(file);
 }
+
 
 
 int countPassengers(Flight* f) {
