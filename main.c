@@ -135,14 +135,15 @@ void showMenu(){
 printf("..........Airport System.............. \n");
 printf("1. add a flight \n ");
 printf("2. add passenger to flight \n");
-
 printf("3. land a flight \n");
-
 printf("4. Depart a flight");
-
 printf("5. Cancel a flight \n");
 printf("6. show arrivals \n");
-printf("7.exit \n");
+printf("7. show flight detail by ID \n");
+printf("8. Show passengers of a flight\n");
+printf("9. Add passenger to a flight by ID\n");
+printf("10. Remove passenger from a flight\n");
+printf("11.exit \n");
 printf("choose an option : ");
 
 
@@ -206,6 +207,25 @@ void loadPassengers(const char* filename,
     fclose(file);
 }
 
+void removePassenger(Flight* f, const char* passport) {
+    Passenger* current = f->header;
+    Passenger* prev = NULL;
+
+    while (current != NULL) {
+        if (strcmp(current->passport, passport) == 0) {
+            if (prev == NULL) f->header = current->next;
+            else prev->next = current->next;
+            if (current == f->last) f->last = prev;
+            free(current);
+            printf("Passenger with passport %s removed.\n", passport);
+            return;
+        }
+        prev = current;
+        current = current->next;
+    }
+    printf("Passenger with passport %s not found.\n", passport);
+}
+
 
 
 
@@ -219,6 +239,9 @@ int main() {
 
     int choice;
     do {
+loadFlights("flights.txt", arrivals, &arrivalCount, departures, &departureCount, emergencies, &emergencyCount);
+loadPassengers("passengers.txt", arrivals, arrivalCount, departures, departureCount, emergencies, emergencyCount);
+
         showMenu();
         scanf("%d", &choice);
 
@@ -279,13 +302,107 @@ int main() {
                     printFlightDetail(arrivals[i]);
                 }
                 break;
-            case 7:
-                printf("Exiting program...\n");
+            case 7: {
+    char searchID[16];
+    printf("Enter Flight ID: ");
+    scanf("%s", searchID);
+
+    Flight* target = NULL;
+
+    // ابحث في كل القوائم
+    for (int i = 0; i < arrivalCount; i++)
+        if (strcmp(arrivals[i]->id, searchID) == 0) target = arrivals[i];
+    for (int i = 0; i < departureCount; i++)
+        if (strcmp(departures[i]->id, searchID) == 0) target = departures[i];
+    for (int i = 0; i < emergencyCount; i++)
+        if (strcmp(emergencies[i]->id, searchID) == 0) target = emergencies[i];
+    for (int i = 0; i < removedCount; i++)
+        if (strcmp(removed[i]->id, searchID) == 0) target = removed[i];
+
+    if (target) {
+        printFlightDetail(target);
+    } else {
+        printf("Flight %s not found.\n", searchID);
+    }
+    break;
+}
+case 8: {
+    char searchID[16];
+    printf("Enter Flight ID: ");
+    scanf("%s", searchID);
+
+    Flight* target = NULL;
+    for (int i = 0; i < arrivalCount; i++)
+        if (strcmp(arrivals[i]->id, searchID) == 0) target = arrivals[i];
+    for (int i = 0; i < departureCount; i++)
+        if (strcmp(departures[i]->id, searchID) == 0) target = departures[i];
+    for (int i = 0; i < emergencyCount; i++)
+        if (strcmp(emergencies[i]->id, searchID) == 0) target = emergencies[i];
+
+    if (target) printPassengers(target);
+    else printf("Flight %s not found.\n", searchID);
+    break;
+}
+case 9: {
+    char searchID[16], name[64], passport[32];
+    printf("Enter Flight ID: ");
+    scanf("%s", searchID);
+
+    Flight* target = NULL;
+    for (int i = 0; i < arrivalCount; i++)
+        if (strcmp(arrivals[i]->id, searchID) == 0) target = arrivals[i];
+    for (int i = 0; i < departureCount; i++)
+        if (strcmp(departures[i]->id, searchID) == 0) target = departures[i];
+    for (int i = 0; i < emergencyCount; i++)
+        if (strcmp(emergencies[i]->id, searchID) == 0) target = emergencies[i];
+
+    if (target) {
+        printf("Enter passenger name: ");
+        scanf("%s", name);
+        printf("Enter passport number: ");
+        scanf("%s", passport);
+        addPassenger(target, name, passport);
+        printf("Passenger %s added to flight %s.\n", name, target->id);
+    } else {
+        printf("Flight %s not found.\n", searchID);
+    }
+    break;
+}
+
+case 10: {
+    char searchID[16], passport[32];
+    printf("Enter Flight ID: ");
+    scanf("%s", searchID);
+
+    Flight* target = NULL;
+    for (int i = 0; i < arrivalCount; i++)
+        if (strcmp(arrivals[i]->id, searchID) == 0) target = arrivals[i];
+    for (int i = 0; i < departureCount; i++)
+        if (strcmp(departures[i]->id, searchID) == 0) target = departures[i];
+    for (int i = 0; i < emergencyCount; i++)
+        if (strcmp(emergencies[i]->id, searchID) == 0) target = emergencies[i];
+
+    if (target) {
+        printf("Enter passport number to remove: ");
+        scanf("%s", passport);
+        removePassenger(target, passport);
+    } else {
+        printf("Flight %s not found.\n", searchID);
+    }
+    break;
+}
+
+
+
+
+
+            case 11:printf("Exiting program...\n");
                 break;
+
             default:
                 printf("Invalid choice.\n");
         }
-    } while (choice != 7);
+    } while (choice != 11);
 
     return 0;
 }
