@@ -250,210 +250,145 @@ void removePassenger(Flight* f, const char* passport) {
 
 
 int main() {
-    Flight* arrivals[100]; int arrivalCount = 0;
-    Flight* departures[100]; int departureCount = 0;
-    Flight* emergencies[100]; int emergencyCount = 0;
-    Flight* removed[100]; int removedCount = 0;
+    Queue arrivals = createQueue(100);
+    Queue departures = createQueue(100);
+    Queue emergencies = createQueue(100);
+    Queue removed = createQueue(100);
+
+    // تحميل البيانات مرة واحدة فقط
+    loadFlights("flights.txt", &arrivals, &departures, &emergencies);
+    loadPassengers("passengers.txt", &arrivals, &departures, &emergencies);
 
     int choice;
     do {
-loadFlights("flights.txt", arrivals, &arrivalCount, departures, &departureCount, emergencies, &emergencyCount);
-loadPassengers("passengers.txt", arrivals, arrivalCount, departures, departureCount, emergencies, emergencyCount);
-
         showMenu();
         scanf("%d", &choice);
 
         switch(choice) {
             case 1: {
-    char id[16], date[16], time[8];
-    int state;
-    printf("Enter Flight ID: ");
-    scanf("%s", id);
-    printf("Enter Flight State (0=ARRIVAL,1=DEPARTURE,2=EMERGENCY): ");
-    scanf("%d", &state);
-    printf("Enter Date (dd-mm-yyyy): ");
-    scanf("%s", date);
-    printf("Enter Time (hh:mm): ");
-    scanf("%s", time);
+                char id[16], date[16], time[8];
+                int state;
+                printf("Enter Flight ID: ");
+                scanf("%s", id);
+                printf("Enter Flight State (0=ARRIVAL,1=DEPARTURE,2=EMERGENCY): ");
+                scanf("%d", &state);
+                printf("Enter Date (dd-mm-yyyy): ");
+                scanf("%s", date);
+                printf("Enter Time (hh:mm): ");
+                scanf("%s", time);
 
-    Flight* f = createFlight(id, (FlightState)state, date, time);
+                Flight* f = createFlight(id, (FlightState)state, date, time);
 
-    if (state == ARRIVAL) enqueueFlight(arrivals, &arrivalCount, f);
-    else if (state == DEPARTURE) enqueueFlight(departures, &departureCount, f);
-    else enqueueFlight(emergencies, &emergencyCount, f);
+                if (state == ARRIVAL) enqueue(&arrivals, f);
+                else if (state == DEPARTURE) enqueue(&departures, f);
+                else enqueue(&emergencies, f);
 
-    printf("Flight %s added.\n", id);
-    break;
-}
+                printf("Flight %s added.\n", id);
+                break;
+            }
 
             case 2: {
-    if (arrivalCount > 0) {
-        char name[64], passport[32];
-        printf("Enter passenger name: ");
-        scanf("%s", name);
-        printf("Enter passport number: ");
-        scanf("%s", passport);
+                if (!isEmpty(&arrivals)) {
+                    char name[64], passport[32];
+                    printf("Enter passenger name: ");
+                    scanf("%s", name);
+                    printf("Enter passport number: ");
+                    scanf("%s", passport);
 
-        addPassenger(arrivals[0], name, passport);
-        printf("Passenger %s added to flight %s.\n", name, arrivals[0]->id);
-    } else {
-        printf("No arrival flights available to add passenger.\n");
-    }
-    break;
-}
-
-            case 3:
-                landFlight(arrivals, &arrivalCount, emergencies, &emergencyCount);
-                break;
-            case 4:
-                departFlight(departures, &departureCount);
-                break;
-            case 5:
-                if (arrivalCount > 0) {
-                    cancelFlight(arrivals[0], removed, &removedCount);
-                    // إزالة من قائمة الوصول
-                    dequeueFlight(arrivals, &arrivalCount);
+                    addPassenger(arrivals.items[arrivals.front], name, passport);
+                    printf("Passenger %s added to flight %s.\n",
+                           name, arrivals.items[arrivals.front]->id);
+                } else {
+                    printf("No arrival flights available to add passenger.\n");
                 }
                 break;
+            }
+
+            case 3: {
+                Flight* f = NULL;
+                if (!isEmpty(&emergencies)) {
+                    f = dequeue(&emergencies);
+                } else if (!isEmpty(&arrivals)) {
+                    f = dequeue(&arrivals);
+                }
+                if (f != NULL) {
+                    f->status = LANDED;
+                    printf("Flight %s has LANDED.\n", f->id);
+                } else {
+                    printf("No flights available to land.\n");
+                }
+                break;
+            }
+
+            case 4: {
+                if (!isEmpty(&departures)) {
+                    Flight* f = dequeue(&departures);
+                    f->status = DEPARTED;
+                    printf("Flight %s has DEPARTED.\n", f->id);
+                } else {
+                    printf("No flights available to depart.\n");
+                }
+                break;
+            }
+
+            case 5: {
+                if (!isEmpty(&arrivals)) {
+                    Flight* f = dequeue(&arrivals);
+                    f->status = CANCELLED;
+                    enqueue(&removed, f);
+                    printf("Flight %s has been CANCELLED.\n", f->id);
+                }
+                break;
+            }
+
             case 6: {
-    printf("=== Arrivals ===\n");
-    for (int i = 0; i < arrivalCount; i++) {
-        printFlightDetail(arrivals[i]);
-    }
+                printf("=== Arrivals ===\n");
+                for (int i = 0; i < arrivals.size; i++) {
+                    printFlightDetail(arrivals.items[(arrivals.front + i) % arrivals.capacity]);
+                }
 
-    printf("\n=== Departures ===\n");
-    for (int i = 0; i < departureCount; i++) {
-        printFlightDetail(departures[i]);
-    }
+                printf("\n=== Departures ===\n");
+                for (int i = 0; i < departures.size; i++) {
+                    printFlightDetail(departures.items[(departures.front + i) % departures.capacity]);
+                }
 
-    printf("\n=== Emergencies ===\n");
-    for (int i = 0; i < emergencyCount; i++) {
-        printFlightDetail(emergencies[i]);
-    }
-    break;
-}
+                printf("\n=== Emergencies ===\n");
+                for (int i = 0; i < emergencies.size; i++) {
+                    printFlightDetail(emergencies.items[(emergencies.front + i) % emergencies.capacity]);
+                }
+                break;
+            }
 
             case 7: {
-    char searchID[16];
-    printf("Enter Flight ID: ");
-    scanf("%s", searchID);
+                char searchID[16];
+                printf("Enter Flight ID: ");
+                scanf("%s", searchID);
 
-    Flight* target = NULL;
+                Flight* target = NULL;
 
-    // ابحث في كل القوائم
-    for (int i = 0; i < arrivalCount; i++)
-        if (strcmp(arrivals[i]->id, searchID) == 0) target = arrivals[i];
-    for (int i = 0; i < departureCount; i++)
-        if (strcmp(departures[i]->id, searchID) == 0) target = departures[i];
-    for (int i = 0; i < emergencyCount; i++)
-        if (strcmp(emergencies[i]->id, searchID) == 0) target = emergencies[i];
-    for (int i = 0; i < removedCount; i++)
-        if (strcmp(removed[i]->id, searchID) == 0) target = removed[i];
+                for (int i = 0; i < arrivals.size; i++)
+                    if (strcmp(arrivals.items[(arrivals.front + i) % arrivals.capacity]->id, searchID) == 0)
+                        target = arrivals.items[(arrivals.front + i) % arrivals.capacity];
+                for (int i = 0; i < departures.size; i++)
+                    if (strcmp(departures.items[(departures.front + i) % departures.capacity]->id, searchID) == 0)
+                        target = departures.items[(departures.front + i) % departures.capacity];
+                for (int i = 0; i < emergencies.size; i++)
+                    if (strcmp(emergencies.items[(emergencies.front + i) % emergencies.capacity]->id, searchID) == 0)
+                        target = emergencies.items[(emergencies.front + i) % emergencies.capacity];
+                for (int i = 0; i < removed.size; i++)
+                    if (strcmp(removed.items[(removed.front + i) % removed.capacity]->id, searchID) == 0)
+                        target = removed.items[(removed.front + i) % removed.capacity];
 
-    if (target) {
-        printFlightDetail(target);
-    } else {
-        printf("Flight %s not found.\n", searchID);
-    }
-    break;
-}
-case 8: {
-    char searchID[16];
-    printf("Enter Flight ID: ");
-    scanf("%s", searchID);
+                if (target) {
+                    printFlightDetail(target);
+                } else {
+                    printf("Flight %s not found.\n", searchID);
+                }
+                break;
+            }
 
-    Flight* target = NULL;
-    for (int i = 0; i < arrivalCount; i++)
-        if (strcmp(arrivals[i]->id, searchID) == 0) target = arrivals[i];
-    for (int i = 0; i < departureCount; i++)
-        if (strcmp(departures[i]->id, searchID) == 0) target = departures[i];
-    for (int i = 0; i < emergencyCount; i++)
-        if (strcmp(emergencies[i]->id, searchID) == 0) target = emergencies[i];
-
-    if (target) printPassengers(target);
-    else printf("Flight %s not found.\n", searchID);
-    break;
-}
-case 9: {
-    char searchID[16], name[64], passport[32];
-    printf("Enter Flight ID: ");
-    scanf("%s", searchID);
-
-    Flight* target = NULL;
-    for (int i = 0; i < arrivalCount; i++)
-        if (strcmp(arrivals[i]->id, searchID) == 0) target = arrivals[i];
-    for (int i = 0; i < departureCount; i++)
-        if (strcmp(departures[i]->id, searchID) == 0) target = departures[i];
-    for (int i = 0; i < emergencyCount; i++)
-        if (strcmp(emergencies[i]->id, searchID) == 0) target = emergencies[i];
-
-    if (target) {
-        printf("Enter passenger name: ");
-        scanf("%s", name);
-        printf("Enter passport number: ");
-        scanf("%s", passport);
-        addPassenger(target, name, passport);
-        printf("Passenger %s added to flight %s.\n", name, target->id);
-    } else {
-        printf("Flight %s not found.\n", searchID);
-    }
-    break;
-}
-
-case 10: {
-    char searchID[16], passport[32];
-    printf("Enter Flight ID: ");
-    scanf("%s", searchID);
-
-    Flight* target = NULL;
-    for (int i = 0; i < arrivalCount; i++)
-        if (strcmp(arrivals[i]->id, searchID) == 0) target = arrivals[i];
-    for (int i = 0; i < departureCount; i++)
-        if (strcmp(departures[i]->id, searchID) == 0) target = departures[i];
-    for (int i = 0; i < emergencyCount; i++)
-        if (strcmp(emergencies[i]->id, searchID) == 0) target = emergencies[i];
-
-    if (target) {
-        printf("Enter passport number to remove: ");
-        scanf("%s", passport);
-        removePassenger(target, passport);
-    } else {
-        printf("Flight %s not found.\n", searchID);
-    }
-    break;
-}
-
-case 11: {
-    printf("=== Active Flights ===\n");
-    for (int i = 0; i < arrivalCount; i++)
-        if (arrivals[i]->status == ACTIVE)
-            printf("%s %s %s | Passengers: %d\n",
-                   arrivals[i]->id, arrivals[i]->date, arrivals[i]->time,
-                   countPassengers(arrivals[i]));
-    for (int i = 0; i < departureCount; i++)
-        if (departures[i]->status == ACTIVE)
-            printf("%s %s %s | Passengers: %d\n",
-                   departures[i]->id, departures[i]->date, departures[i]->time,
-                   countPassengers(departures[i]));
-
-    printf("\n=== Emergency Flights ===\n");
-    for (int i = 0; i < emergencyCount; i++)
-        printf("%s %s %s | Passengers: %d\n",
-               emergencies[i]->id, emergencies[i]->date, emergencies[i]->time,
-               countPassengers(emergencies[i]));
-
-    printf("\n=== Cancelled/Departed Flights ===\n");
-    for (int i = 0; i < removedCount; i++)
-        printf("%s %s %s | Status: %d | Passengers: %d\n",
-               removed[i]->id, removed[i]->date, removed[i]->time,
-               removed[i]->status, countPassengers(removed[i]));
-    break;
-}
-
-
-
-
-            case 12:printf("Exiting program...\n");
+            case 12:
+                printf("Exiting program...\n");
                 break;
 
             default:
