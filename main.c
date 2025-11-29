@@ -149,6 +149,66 @@ printf("choose an option : ");
 
 }
 
+void loadFlights(const char* filename,
+                 Flight* arrivals[], int* arrivalCount,
+                 Flight* departures[], int* departureCount,
+                 Flight* emergencies[], int* emergencyCount) {
+    FILE* file = fopen(filename, "r");
+    if (!file) {
+        printf("Error opening %s\n", filename);
+        return;
+    }
+
+    char id[16], stateStr[16], date[16], time[8];
+    while (fscanf(file, "%[^;];%[^;];%[^;];%s\n", id, stateStr, date, time) == 4) {
+        FlightState state = ARRIVAL;
+        if (strcmp(stateStr, "Departure") == 0) state = DEPARTURE;
+        else if (strcmp(stateStr, "Emergency") == 0) state = EMERGENCY;
+
+        Flight* f = createFlight(id, state, date, time);
+
+        if (state == ARRIVAL) arrivals[(*arrivalCount)++] = f;
+        else if (state == DEPARTURE) departures[(*departureCount)++] = f;
+        else emergencies[(*emergencyCount)++] = f;
+    }
+
+    fclose(file);
+}
+
+
+void loadPassengers(const char* filename,
+                    Flight* arrivals[], int arrivalCount,
+                    Flight* departures[], int departureCount,
+                    Flight* emergencies[], int emergencyCount) {
+    FILE* file = fopen(filename, "r");
+    if (!file) {
+        printf("Error opening %s\n", filename);
+        return;
+    }
+
+    char name[64], passport[32], flightID[16];
+    while (fscanf(file, "%[^;];%[^;];%s\n", name, passport, flightID) == 3) {
+        Flight* target = NULL;
+
+        // ابحث عن الرحلة المناسبة حسب الـ FlightID
+        for (int i = 0; i < arrivalCount; i++)
+            if (strcmp(arrivals[i]->id, flightID) == 0) target = arrivals[i];
+        for (int i = 0; i < departureCount; i++)
+            if (strcmp(departures[i]->id, flightID) == 0) target = departures[i];
+        for (int i = 0; i < emergencyCount; i++)
+            if (strcmp(emergencies[i]->id, flightID) == 0) target = emergencies[i];
+
+        if (target) {
+            addPassenger(target, name, passport);
+        }
+    }
+
+    fclose(file);
+}
+
+
+
+
 
 
 int main() {
