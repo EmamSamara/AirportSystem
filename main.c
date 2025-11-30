@@ -71,7 +71,7 @@ Flight* dequeue(Queue* q) {
 }
 
 // ============================================
-// INPUT VALIDATION FUNCTIONS
+// validation functons
 // ============================================
 
 void clearInputBuffer() {
@@ -157,10 +157,13 @@ int isValidFlightID(const char* id) {
 }
 
 int isValidPassport(const char* passport) {
-    if (strlen(passport) < 3 || strlen(passport) > 20) return 0;
+    if (passport == NULL) return 0;
+    size_t len = strlen(passport);
+    if (len < 3 || len > 20) return 0;
     
-    for (int i = 0; i < strlen(passport); i++) {
-        if (!isalnum(passport[i])) return 0;
+    // ONLY accept digits
+    for (size_t i = 0; i < len; ++i) {
+        if (!isdigit((unsigned char)passport[i])) return 0;
     }
     
     return 1;
@@ -176,14 +179,20 @@ int isValidName(const char* name) {
     return 1;
 }
 
+// convert to lower case
+void toLowerInPlace(char *s) {
+    for (size_t i = 0; s && s[i]; ++i) s[i] = (char)tolower((unsigned char)s[i]);
+}
+
 char* getValidDate() {
     static char date[16];
     int valid = 0;
     
     while (!valid) {
-        printf("Enter Date (dd-mm-yyyy): ");
+        printf("Enter Date (dd-mm-yyyy) (future date - year >= 2025): ");
         fgets(date, sizeof(date), stdin);
         date[strcspn(date, "\n")] = '\0';
+        trim(date);
         
         if (strlen(date) == 0) {
             printf("[ERROR] Date cannot be empty!\n");
@@ -191,7 +200,7 @@ char* getValidDate() {
         }
         
         if (!isValidDate(date)) {
-            printf("[ERROR] Invalid date format! Use dd-mm-yyyy (e.g., 25-12-2025)\n");
+            printf("[ERROR] Invalid date. Please enter a future date in format dd-mm-yyyy (year >= 2025).\n");
             continue;
         }
         
@@ -209,6 +218,7 @@ char* getValidTime() {
         printf("Enter Time (hh:mm): ");
         fgets(time, sizeof(time), stdin);
         time[strcspn(time, "\n")] = '\0';
+        trim(time);
         
         if (strlen(time) == 0) {
             printf("[ERROR] Time cannot be empty!\n");
@@ -234,6 +244,7 @@ char* getValidFlightID() {
         printf("Enter Flight ID: ");
         fgets(id, sizeof(id), stdin);
         id[strcspn(id, "\n")] = '\0';
+        trim(id);
         
         if (strlen(id) == 0) {
             printf("[ERROR] Flight ID cannot be empty!\n");
@@ -256,9 +267,14 @@ char* getValidPassport() {
     int valid = 0;
     
     while (!valid) {
-        printf("Enter Passport Number: ");
-        fgets(passport, sizeof(passport), stdin);
+        printf("Enter Passport Number (digits only, 3-20 chars): ");
+        if (!fgets(passport, sizeof(passport), stdin)) {
+            clearInputBuffer();
+            printf("[ERROR] Input error. Try again.\n");
+            continue;
+        }
         passport[strcspn(passport, "\n")] = '\0';
+        trim(passport);
         
         if (strlen(passport) == 0) {
             printf("[ERROR] Passport cannot be empty!\n");
@@ -266,7 +282,7 @@ char* getValidPassport() {
         }
         
         if (!isValidPassport(passport)) {
-            printf("[ERROR] Invalid Passport! Use alphanumeric characters (3-20 chars)\n");
+            printf("[ERROR] Invalid Passport! Use digits only (3-20 chars). Please try again.\n");
             continue;
         }
         
@@ -284,6 +300,7 @@ char* getValidName() {
         printf("Enter Name: ");
         fgets(name, sizeof(name), stdin);
         name[strcspn(name, "\n")] = '\0';
+        trim(name);
         
         if (strlen(name) == 0) {
             printf("[ERROR] Name cannot be empty!\n");
@@ -302,7 +319,7 @@ char* getValidName() {
 }
 
 // ============================================
-// ORIGINAL FUNCTIONS
+// orignal functons
 // ============================================
 
 Passenger* createPassenger(char* name, char* passport) {
@@ -369,11 +386,18 @@ void loadFlights(const char* filename, Queue* arrivals, Queue* departures, Queue
         return;
     }
 
-    char id[16], stateStr[16], date[16], time[8];
-    while (fscanf(file, "%15[^;];%15[^;];%15[^;];%7s\n", id, stateStr, date, time) == 4) {
+    char id[16], stateStr[32], date[16], time[8];
+    while (fscanf(file, "%15[^;];%31[^;];%15[^;];%7s\n", id, stateStr, date, time) == 4) {
+        trim(id);
+        trim(stateStr);
+        trim(date);
+        trim(time);
+        // normalize state string to lowercase for comparison
+        toLowerInPlace(stateStr);
+
         FlightState state = ARRIVAL;
-        if (strcmp(stateStr, "Departure") == 0) state = DEPARTURE;
-        else if (strcmp(stateStr, "Emergency") == 0) state = EMERGENCY;
+        if (strcmp(stateStr, "departure") == 0) state = DEPARTURE;
+        else if (strcmp(stateStr, "emergency") == 0) state = EMERGENCY;
 
         Flight* f = createFlight(id, state, date, time);
 
@@ -395,6 +419,10 @@ void loadPassengers(const char* filename, Queue* arrivals, Queue* departures, Qu
 
     char name[64], passport[32], flightID[16];
     while (fscanf(file, "%63[^;];%31[^;];%15s\n", name, passport, flightID) == 3) {
+        trim(name);
+        trim(passport);
+        trim(flightID);
+
         Flight* target = NULL;
 
         for (int i = 0; i < arrivals->size; i++)
@@ -426,7 +454,7 @@ int countPassengers(Flight* f) {
     return count;
 }
 
-void removePassenger(Flight* f, const char* passport) {
+int removePassenger(Flight* f, const char* passport) {
     Passenger* current = f->header;
     Passenger* prev = NULL;
 
@@ -437,12 +465,13 @@ void removePassenger(Flight* f, const char* passport) {
             if (current == f->last) f->last = prev;
             free(current);
             printf("[OK] Passenger with passport %s removed.\n", passport);
-            return;
+            return 1;
         }
         prev = current;
         current = current->next;
     }
     printf("[ERROR] Passenger with passport %s not found.\n", passport);
+    return 0;
 }
 
 void showMenu() {
@@ -466,10 +495,10 @@ void showMenu() {
 }
 
 // ============================================
-// MEMORY CLEANUP FUNCTIONS
+// memroy cleanup
 // ============================================
 
-// Frees all passengers linked list in a flight
+// free pasengers list
 void cleanupPassengers(Flight* f) {
     if (f == NULL) return;
     Passenger* current = f->header;
@@ -480,7 +509,7 @@ void cleanupPassengers(Flight* f) {
     }
 }
 
-// Frees all flights in a queue
+// free all flights
 void cleanupQueue(Queue* q) {
     if (q == NULL || q->items == NULL) return;
     
@@ -494,7 +523,7 @@ void cleanupQueue(Queue* q) {
     free(q->items);
 }
 
-// Main cleanup function - call before exit
+// cleanup funtion call befre exit
 void cleanupAllResources(Queue* arrivals, Queue* departures, Queue* emergencies,
                          Queue* landed, Queue* departed, Queue* cancelled) {
     printf("\n[INFO] Cleaning up resources...\n");
@@ -505,6 +534,100 @@ void cleanupAllResources(Queue* arrivals, Queue* departures, Queue* emergencies,
     cleanupQueue(departed);
     cleanupQueue(cancelled);
     printf("[OK] All resources freed successfully.\n");
+}
+
+// remove flite by id from queue
+Flight* removeFlightByID(Queue* q, const char* id) {
+    if (isEmpty(q)) return NULL;
+    Flight* found = NULL;
+    int n = q->size;
+    for (int i = 0; i < n; i++) {
+        Flight* f = dequeue(q);
+        if (found == NULL && strcmp(f->id, id) == 0) {
+            found = f;
+        } else {
+            enqueue(q, f);
+        }
+    }
+    return found;
+}
+
+// find flite in queue
+Flight* findFlightInQueue(Queue* q, const char* id) {
+    if (isEmpty(q)) return NULL;
+    for (int i = 0; i < q->size; i++) {
+        Flight* f = q->items[(q->front + i) % q->capacity];
+        if (strcmp(f->id, id) == 0) return f;
+    }
+    return NULL;
+}
+
+// find flite across queues
+Flight* findFlightAcross(const char* id,
+                         Queue* arrivals, Queue* departures, Queue* emergencies,
+                         Queue* landed, Queue* departed, Queue* cancelled,
+                         Queue** outQueue) {
+    Flight* f = NULL;
+    if (arrivals && (f = findFlightInQueue(arrivals, id))) {
+        if (outQueue) *outQueue = arrivals;
+        return f;
+    }
+    if (departures && (f = findFlightInQueue(departures, id))) {
+        if (outQueue) *outQueue = departures;
+        return f;
+    }
+    if (emergencies && (f = findFlightInQueue(emergencies, id))) {
+        if (outQueue) *outQueue = emergencies;
+        return f;
+    }
+    if (landed && (f = findFlightInQueue(landed, id))) {
+        if (outQueue) *outQueue = landed;
+        return f;
+    }
+    if (departed && (f = findFlightInQueue(departed, id))) {
+        if (outQueue) *outQueue = departed;
+        return f;
+    }
+    if (cancelled && (f = findFlightInQueue(cancelled, id))) {
+        if (outQueue) *outQueue = cancelled;
+        return f;
+    }
+    if (outQueue) *outQueue = NULL;
+    return NULL;
+}
+
+// check pasport exists
+int passengerPassportExists(Flight* f, const char* passport) {
+    if (f == NULL || passport == NULL) return 0;
+    Passenger* cur = f->header;
+    while (cur != NULL) {
+        if (strcmp(cur->passport, passport) == 0) return 1;
+        cur = cur->next;
+    }
+    return 0;
+}
+
+// get unique pasport for flite
+char* getUniquePassportForFlight(Flight* f) {
+    char* p;
+    while (1) {
+        p = getValidPassport();
+        if (!passengerPassportExists(f, p)) return p;
+        printf("[ERROR] Passport %s is already used on this flight. Please enter a different passport.\n", p);
+    }
+}
+
+// check if flite id exists
+int flightIDExists(const char* id, Queue* arrivals, Queue* departures, Queue* emergencies,
+                   Queue* landed, Queue* departed, Queue* cancelled) {
+    if (id == NULL) return 0;
+    if (arrivals && findFlightInQueue(arrivals, id)) return 1;
+    if (departures && findFlightInQueue(departures, id)) return 1;
+    if (emergencies && findFlightInQueue(emergencies, id)) return 1;
+    if (landed && findFlightInQueue(landed, id)) return 1;
+    if (departed && findFlightInQueue(departed, id)) return 1;
+    if (cancelled && findFlightInQueue(cancelled, id)) return 1;
+    return 0;
 }
 
 int main() {
@@ -530,7 +653,17 @@ int main() {
         switch(choice) {
             case 1: {
                 printf("\n--- Add New Flight ---\n");
-                char* id = getValidFlightID();
+                char* id = NULL;
+
+                // keep asking until valid id
+                while (1) {
+                    id = getValidFlightID();
+                    if (flightIDExists(id, &arrivals, &departures, &emergencies, &landed, &departed, &cancelled)) {
+                        printf("[ERROR] Flight ID '%s' already exists. Please enter a unique ID.\n", id);
+                        continue;
+                    }
+                    break;
+                }
                 
                 printf("Flight State:\n");
                 printf("  0 = ARRIVAL\n");
@@ -553,18 +686,26 @@ int main() {
             }
 
             case 2: {
-                if (isEmpty(&arrivals)) {
-                    printf("[ERROR] No arrival flights available.\n");
-                    break;
-                }
-                
-                printf("\n--- Add Passenger to First Arrival ---\n");
-                char* name = getValidName();
-                char* passport = getValidPassport();
+                printf("\n--- Add Passenger to Flight (by ID) ---\n");
+                Flight* target = NULL;
+                char* searchID = NULL;
 
-                addPassenger(arrivals.items[arrivals.front], name, passport);
-                printf("[OK] Passenger %s added to flight %s.\n",
-                       name, arrivals.items[arrivals.front]->id);
+                do {
+                    searchID = getValidFlightID();
+                    // search active queues
+                    target = findFlightAcross(searchID, &arrivals, &departures, &emergencies,
+                                              NULL, NULL, NULL, NULL);
+                    if (!target) {
+                        printf("[ERROR] Flight %s not found or not available for adding passengers. Please try again.\n", searchID);
+                    }
+                } while (!target);
+
+                {
+                    char* name = getValidName();
+                    char* passport = getUniquePassportForFlight(target);
+                    addPassenger(target, name, passport);
+                    printf("[OK] Passenger %s added to flight %s.\n", name, searchID);
+                }
                 break;
             }
 
@@ -572,7 +713,7 @@ int main() {
                 printf("\n--- Land Flight ---\n");
                 Flight* f = NULL;
                 
-                // Emergency flights have priority
+                // emergencies first
                 if (!isEmpty(&emergencies)) {
                     f = dequeue(&emergencies);
                     printf("[OK] Emergency flight prioritized!\n");
@@ -592,31 +733,67 @@ int main() {
                 break;
             }
 
-            case 4: {
+            case 4: { // Depart Flight: handle emergencies first, then prompt for departure ID
                 printf("\n--- Depart Flight ---\n");
+
+                // land emergencies first
+                if (!isEmpty(&emergencies)) {
+                    printf("[INFO] Emergency flights detected — landing them first.\n");
+                    while (!isEmpty(&emergencies)) {
+                        Flight* ef = dequeue(&emergencies);
+                        ef->status = LANDED;
+                        enqueue(&landed, ef);
+                        printf("[OK] Emergency flight %s has LANDED.\n", ef->id);
+                    }
+                }
+
+                // ask which flight depart
                 if (isEmpty(&departures)) {
                     printf("[ERROR] No departure flights available.\n");
                     break;
                 }
                 
-                Flight* f = dequeue(&departures);
-                f->status = DEPARTED;
-                enqueue(&departed, f);
-                printf("[OK] Flight %s has DEPARTED.\n", f->id);
+                Flight* removed = NULL;
+                char* searchID = NULL;
+                do {
+                    printf("Enter ID of departure flight to depart: ");
+                    searchID = getValidFlightID();
+                    // remove from departures
+                    removed = removeFlightByID(&departures, searchID);
+                    if (!removed) {
+                        printf("[ERROR] Departure flight %s not found. Please try again.\n", searchID);
+                    }
+                } while (!removed);
+
+                removed->status = DEPARTED;
+                enqueue(&departed, removed);
+                printf("[OK] Flight %s has DEPARTED.\n", removed->id);
                 break;
             }
 
-            case 5: {
+            case 5: { // ask which flight cancel
                 printf("\n--- Cancel Flight ---\n");
+
                 if (isEmpty(&arrivals)) {
                     printf("[ERROR] No arrival flights to cancel.\n");
                     break;
                 }
-                
-                Flight* f = dequeue(&arrivals);
-                f->status = CANCELLED;
-                enqueue(&cancelled, f);
-                printf("[OK] Flight %s has been CANCELLED.\n", f->id);
+
+                Flight* removed = NULL;
+                char* searchID = NULL;
+                do {
+                    printf("Enter ID of arrival flight to cancel: ");
+                    searchID = getValidFlightID();
+                    // remove from arrivals
+                    removed = removeFlightByID(&arrivals, searchID);
+                    if (!removed) {
+                        printf("[ERROR] Arrival flight %s not found. Please try again.\n", searchID);
+                    }
+                } while (!removed);
+
+                removed->status = CANCELLED;
+                enqueue(&cancelled, removed);
+                printf("[OK] Flight %s has been CANCELLED.\n", removed->id);
                 break;
             }
 
@@ -683,204 +860,121 @@ int main() {
 
             case 7: {
                 printf("\n--- Search Flight by ID ---\n");
-                char* searchID = getValidFlightID();
-
                 Flight* target = NULL;
+                char* searchID = NULL;
 
-                for (int i = 0; i < arrivals.size; i++)
-                    if (strcmp(arrivals.items[(arrivals.front + i) % arrivals.capacity]->id, searchID) == 0)
-                        target = arrivals.items[(arrivals.front + i) % arrivals.capacity];
-                for (int i = 0; i < departures.size; i++)
-                    if (strcmp(departures.items[(departures.front + i) % departures.capacity]->id, searchID) == 0)
-                        target = departures.items[(departures.front + i) % departures.capacity];
-                for (int i = 0; i < emergencies.size; i++)
-                    if (strcmp(emergencies.items[(emergencies.front + i) % emergencies.capacity]->id, searchID) == 0)
-                        target = emergencies.items[(emergencies.front + i) % emergencies.capacity];
-                for (int i = 0; i < landed.size; i++)
-                    if (strcmp(landed.items[(landed.front + i) % landed.capacity]->id, searchID) == 0)
-                        target = landed.items[(landed.front + i) % landed.capacity];
-                for (int i = 0; i < departed.size; i++)
-                    if (strcmp(departed.items[(departed.front + i) % departed.capacity]->id, searchID) == 0)
-                        target = departed.items[(departed.front + i) % departed.capacity];
-                for (int i = 0; i < cancelled.size; i++)
-                    if (strcmp(cancelled.items[(cancelled.front + i) % cancelled.capacity]->id, searchID) == 0)
-                        target = cancelled.items[(cancelled.front + i) % cancelled.capacity];
+                do {
+                    searchID = getValidFlightID();
+                    target = findFlightAcross(searchID, &arrivals, &departures, &emergencies,
+                                              &landed, &departed, &cancelled, NULL);
+                    if (!target) {
+                        printf("[ERROR] Flight %s not found. Please try again.\n", searchID);
+                    }
+                } while (!target);
 
-                if (target) {
-                    printFlightDetail(target);
-                } else {
-                    printf("[ERROR] Flight %s not found.\n", searchID);
-                }
+                printFlightDetail(target);
                 break;
             }
 
             case 8: {
                 printf("\n--- Show Flight Passengers ---\n");
-                char* searchID = getValidFlightID();
-
                 Flight* target = NULL;
-                for (int i = 0; i < arrivals.size; i++)
-                    if (strcmp(arrivals.items[(arrivals.front + i) % arrivals.capacity]->id, searchID) == 0)
-                        target = arrivals.items[(arrivals.front + i) % arrivals.capacity];
-                for (int i = 0; i < departures.size; i++)
-                    if (strcmp(departures.items[(departures.front + i) % departures.capacity]->id, searchID) == 0)
-                        target = departures.items[(departures.front + i) % departures.capacity];
-                for (int i = 0; i < emergencies.size; i++)
-                    if (strcmp(emergencies.items[(emergencies.front + i) % emergencies.capacity]->id, searchID) == 0)
-                        target = emergencies.items[(emergencies.front + i) % emergencies.capacity];
-                for (int i = 0; i < landed.size; i++)
-                    if (strcmp(landed.items[(landed.front + i) % landed.capacity]->id, searchID) == 0)
-                        target = landed.items[(landed.front + i) % landed.capacity];
-                for (int i = 0; i < departed.size; i++)
-                    if (strcmp(departed.items[(departed.front + i) % departed.capacity]->id, searchID) == 0)
-                        target = departed.items[(departed.front + i) % departed.capacity];
-                for (int i = 0; i < cancelled.size; i++)
-                    if (strcmp(cancelled.items[(cancelled.front + i) % cancelled.capacity]->id, searchID) == 0)
-                        target = cancelled.items[(cancelled.front + i) % cancelled.capacity];
+                char* searchID = NULL;
 
-                if (target) {
-                    printf("Passengers on Flight %s (%d total):\n", searchID, countPassengers(target));
-                    printPassengers(target);
-                } else {
-                    printf("[ERROR] Flight %s not found.\n", searchID);
-                }
+                do {
+                    searchID = getValidFlightID();
+                    target = findFlightAcross(searchID, &arrivals, &departures, &emergencies,
+                                              &landed, &departed, &cancelled, NULL);
+                    if (!target) {
+                        printf("[ERROR] Flight %s not found. Please try again.\n", searchID);
+                    }
+                } while (!target);
+
+                printf("Passengers on Flight %s (%d total):\n", searchID, countPassengers(target));
+                printPassengers(target);
                 break;
             }
 
             case 9: {
-                printf("\n--- Add Passenger to Flight ---\n");
-                char* searchID = getValidFlightID();
-
+                printf("\n--- Add Passenger to Flight (by ID) ---\n");
                 Flight* target = NULL;
-                for (int i = 0; i < arrivals.size; i++)
-                    if (strcmp(arrivals.items[(arrivals.front + i) % arrivals.capacity]->id, searchID) == 0)
-                        target = arrivals.items[(arrivals.front + i) % arrivals.capacity];
-                for (int i = 0; i < departures.size; i++)
-                    if (strcmp(departures.items[(departures.front + i) % departures.capacity]->id, searchID) == 0)
-                        target = departures.items[(departures.front + i) % departures.capacity];
-                for (int i = 0; i < emergencies.size; i++)
-                    if (strcmp(emergencies.items[(emergencies.front + i) % emergencies.capacity]->id, searchID) == 0)
-                        target = emergencies.items[(emergencies.front + i) % emergencies.capacity];
+                char* searchID = NULL;
 
-                if (target) {
+                do {
+                    searchID = getValidFlightID();
+                    target = findFlightAcross(searchID, &arrivals, &departures, &emergencies,
+                                              NULL, NULL, NULL, NULL);
+                    if (!target) {
+                        printf("[ERROR] Flight %s not found or not available for adding passengers. Please try again.\n", searchID);
+                    }
+                } while (!target);
+
+                {
                     char* name = getValidName();
-                    char* passport = getValidPassport();
+                    char* passport = getUniquePassportForFlight(target);
                     addPassenger(target, name, passport);
                     printf("[OK] Passenger %s added to flight %s.\n", name, searchID);
-                } else {
-                    printf("[ERROR] Flight %s not found or has already departed/landed.\n", searchID);
                 }
                 break;
             }
 
             case 10: {
                 printf("\n--- Remove Passenger from Flight ---\n");
-                char* searchID = getValidFlightID();
-
                 Flight* target = NULL;
-                for (int i = 0; i < arrivals.size; i++)
-                    if (strcmp(arrivals.items[(arrivals.front + i) % arrivals.capacity]->id, searchID) == 0)
-                        target = arrivals.items[(arrivals.front + i) % arrivals.capacity];
-                for (int i = 0; i < departures.size; i++)
-                    if (strcmp(departures.items[(departures.front + i) % departures.capacity]->id, searchID) == 0)
-                        target = departures.items[(departures.front + i) % departures.capacity];
-                for (int i = 0; i < emergencies.size; i++)
-                    if (strcmp(emergencies.items[(emergencies.front + i) % emergencies.capacity]->id, searchID) == 0)
-                        target = emergencies.items[(emergencies.front + i) % emergencies.capacity];
-                for (int i = 0; i < landed.size; i++)
-                    if (strcmp(landed.items[(landed.front + i) % landed.capacity]->id, searchID) == 0)
-                        target = landed.items[(landed.front + i) % landed.capacity];
-                for (int i = 0; i < departed.size; i++)
-                    if (strcmp(departed.items[(departed.front + i) % departed.capacity]->id, searchID) == 0)
-                        target = departed.items[(departed.front + i) % departed.capacity];
-                for (int i = 0; i < cancelled.size; i++)
-                    if (strcmp(cancelled.items[(cancelled.front + i) % cancelled.capacity]->id, searchID) == 0)
-                        target = cancelled.items[(cancelled.front + i) % cancelled.capacity];
+                char* searchID = NULL;
 
-                if (target) {
-                    char* passport = getValidPassport();
-                    removePassenger(target, passport);
-                } else {
-                    printf("[ERROR] Flight %s not found.\n", searchID);
+                do {
+                    searchID = getValidFlightID();
+                    target = findFlightAcross(searchID, &arrivals, &departures, &emergencies,
+                                              &landed, &departed, &cancelled, NULL);
+                    if (!target) {
+                        printf("[ERROR] Flight %s not found. Please try again.\n", searchID);
+                    }
+                } while (!target);
+
+                {
+                    int removed = 0;
+                    while (!removed) {
+                        char* passport = getValidPassport();
+                        removed = removePassenger(target, passport); // returns 1 on success
+                        if (!removed) {
+                            printf("[ERROR] Passport not found on this flight. Try again.\n");
+                        }
+                    }
                 }
                 break;
             }
 
             case 11: {
-                printf("\n==========================================\n");
-                printf("  ALL FLIGHT STATUSES\n");
-                printf("==========================================\n");
-                
-                const char* statusStr[] = {"ACTIVE", "LANDED", "DEPARTED", "CANCELLED"};
-                const char* stateStr[] = {"ARRIVAL", "DEPARTURE", "EMERGENCY"};
-                
-                printf("\n=== ACTIVE ARRIVALS ===\n");
-                if (isEmpty(&arrivals)) {
-                    printf("  No flights.\n");
-                } else {
-                    for (int i = 0; i < arrivals.size; i++) {
-                        Flight* f = arrivals.items[(arrivals.front + i) % arrivals.capacity];
-                        printf("  Flight %s [%s]: %s (Date: %s, Time: %s)\n", 
-                               f->id, stateStr[f->state], statusStr[f->status], f->date, f->time);
-                    }
-                }
-                
-                printf("\n=== ACTIVE DEPARTURES ===\n");
-                if (isEmpty(&departures)) {
-                    printf("  No flights.\n");
-                } else {
-                    for (int i = 0; i < departures.size; i++) {
-                        Flight* f = departures.items[(departures.front + i) % departures.capacity];
-                        printf("  Flight %s [%s]: %s (Date: %s, Time: %s)\n", 
-                               f->id, stateStr[f->state], statusStr[f->status], f->date, f->time);
-                    }
-                }
-                
-                printf("\n=== ACTIVE EMERGENCIES ===\n");
-                if (isEmpty(&emergencies)) {
-                    printf("  No flights.\n");
-                } else {
-                    for (int i = 0; i < emergencies.size; i++) {
-                        Flight* f = emergencies.items[(emergencies.front + i) % emergencies.capacity];
-                        printf("  Flight %s [%s]: %s (Date: %s, Time: %s)\n", 
-                               f->id, stateStr[f->state], statusStr[f->status], f->date, f->time);
-                    }
-                }
+                    printf("\n--- Show Flight Status (by ID) ---\n");
+                    Flight* target = NULL;
+                    char* searchID = NULL;
 
-                printf("\n=== LANDED FLIGHTS ===\n");
-                if (isEmpty(&landed)) {
-                    printf("  No flights.\n");
-                } else {
-                    for (int i = 0; i < landed.size; i++) {
-                        Flight* f = landed.items[(landed.front + i) % landed.capacity];
-                        printf("  Flight %s [%s]: %s (Date: %s, Time: %s)\n", 
-                               f->id, stateStr[f->state], statusStr[f->status], f->date, f->time);
-                    }
-                }
+                    do {
+                        searchID = getValidFlightID();
+                        target = findFlightAcross(searchID,
+                                                  &arrivals, &departures, &emergencies,
+                                                  &landed, &departed, &cancelled,
+                                                  NULL);
+                        if (!target) {
+                            printf("[ERROR] Flight %s not found. Please try again.\n", searchID);
+                        }
+                    } while (!target);
 
-                printf("\n=== DEPARTED FLIGHTS ===\n");
-                if (isEmpty(&departed)) {
-                    printf("  No flights.\n");
-                } else {
-                    for (int i = 0; i < departed.size; i++) {
-                        Flight* f = departed.items[(departed.front + i) % departed.capacity];
-                        printf("  Flight %s [%s]: %s (Date: %s, Time: %s)\n", 
-                               f->id, stateStr[f->state], statusStr[f->status], f->date, f->time);
+                    {
+                        const char* stateStr[] = {"ARRIVAL", "DEPARTURE", "EMERGENCY"};
+                        const char* statusStr[] = {"ACTIVE", "LANDED", "DEPARTED", "CANCELLED"};
+                        int pax = countPassengers(target);
+                        printf("Flight %s | Date: %s | Time: %s | State: %s | Status: %s | Passengers: %d\n",
+                               target->id,
+                               target->date,
+                               target->time,
+                               stateStr[target->state],
+                               statusStr[target->status],
+                               pax);
                     }
+                    break;
                 }
-
-                printf("\n=== CANCELLED FLIGHTS ===\n");
-                if (isEmpty(&cancelled)) {
-                    printf("  No flights.\n");
-                } else {
-                    for (int i = 0; i < cancelled.size; i++) {
-                        Flight* f = cancelled.items[(cancelled.front + i) % cancelled.capacity];
-                        printf("  Flight %s [%s]: %s (Date: %s, Time: %s)\n", 
-                               f->id, stateStr[f->state], statusStr[f->status], f->date, f->time);
-                    }
-                }
-                break;
-            }
 
             case 12:
                 printf("\n==========================================\n");
@@ -888,7 +982,7 @@ int main() {
                 printf("  Thank you for using the Airport System!\n");
                 printf("==========================================\n\n");
                 
-                // CALL CLEANUP FUNCTION BEFORE EXIT - EMPTY ALL MEMORY
+                // cleanup before exit
                 cleanupAllResources(&arrivals, &departures, &emergencies,
                                    &landed, &departed, &cancelled);
                 break;
