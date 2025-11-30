@@ -86,12 +86,12 @@ int getValidInteger(int min, int max) {
     while (!valid) {
         if (scanf("%d", &value) != 1) {
             clearInputBuffer();
-            printf("❌ Invalid input! Please enter a number: ");
+            printf("[ERROR] Please enter a number between %d and %d: ", min, max);
             continue;
         }
         
         if (value < min || value > max) {
-            printf("❌ Please enter a number between %d and %d: ", min, max);
+            printf("[ERROR] Please enter a number between %d and %d: ", min, max);
             continue;
         }
         
@@ -186,12 +186,12 @@ char* getValidDate() {
         date[strcspn(date, "\n")] = '\0';
         
         if (strlen(date) == 0) {
-            printf("❌ Date cannot be empty!\n");
+            printf("[ERROR] Date cannot be empty!\n");
             continue;
         }
         
         if (!isValidDate(date)) {
-            printf("❌ Invalid date format! Use dd-mm-yyyy (e.g., 25-12-2025)\n");
+            printf("[ERROR] Invalid date format! Use dd-mm-yyyy (e.g., 25-12-2025)\n");
             continue;
         }
         
@@ -211,12 +211,12 @@ char* getValidTime() {
         time[strcspn(time, "\n")] = '\0';
         
         if (strlen(time) == 0) {
-            printf("❌ Time cannot be empty!\n");
+            printf("[ERROR] Time cannot be empty!\n");
             continue;
         }
         
         if (!isValidTime(time)) {
-            printf("❌ Invalid time format! Use hh:mm (e.g., 14:30)\n");
+            printf("[ERROR] Invalid time format! Use hh:mm (e.g., 14:30)\n");
             continue;
         }
         
@@ -236,12 +236,12 @@ char* getValidFlightID() {
         id[strcspn(id, "\n")] = '\0';
         
         if (strlen(id) == 0) {
-            printf("❌ Flight ID cannot be empty!\n");
+            printf("[ERROR] Flight ID cannot be empty!\n");
             continue;
         }
         
         if (!isValidFlightID(id)) {
-            printf("❌ Invalid Flight ID! Use alphanumeric characters (3-10 chars)\n");
+            printf("[ERROR] Invalid Flight ID! Use alphanumeric characters (3-10 chars)\n");
             continue;
         }
         
@@ -261,12 +261,12 @@ char* getValidPassport() {
         passport[strcspn(passport, "\n")] = '\0';
         
         if (strlen(passport) == 0) {
-            printf("❌ Passport cannot be empty!\n");
+            printf("[ERROR] Passport cannot be empty!\n");
             continue;
         }
         
         if (!isValidPassport(passport)) {
-            printf("❌ Invalid Passport! Use alphanumeric characters (3-20 chars)\n");
+            printf("[ERROR] Invalid Passport! Use alphanumeric characters (3-20 chars)\n");
             continue;
         }
         
@@ -286,12 +286,12 @@ char* getValidName() {
         name[strcspn(name, "\n")] = '\0';
         
         if (strlen(name) == 0) {
-            printf("❌ Name cannot be empty!\n");
+            printf("[ERROR] Name cannot be empty!\n");
             continue;
         }
         
         if (!isValidName(name)) {
-            printf("❌ Invalid Name! Use only letters and spaces\n");
+            printf("[ERROR] Invalid Name! Use only letters and spaces\n");
             continue;
         }
         
@@ -365,7 +365,7 @@ void printFlightDetail(Flight* f) {
 void loadFlights(const char* filename, Queue* arrivals, Queue* departures, Queue* emergencies) {
     FILE* file = fopen(filename, "r");
     if (!file) {
-        printf("⚠️  File '%s' not found. Continuing without preloaded flights.\n", filename);
+        printf("[WARNING] File '%s' not found. Continuing without preloaded flights.\n", filename);
         return;
     }
 
@@ -383,13 +383,13 @@ void loadFlights(const char* filename, Queue* arrivals, Queue* departures, Queue
     }
 
     fclose(file);
-    printf("✓ Flights loaded successfully from %s\n", filename);
+    printf("[OK] Flights loaded successfully from %s\n", filename);
 }
 
 void loadPassengers(const char* filename, Queue* arrivals, Queue* departures, Queue* emergencies) {
     FILE* file = fopen(filename, "r");
     if (!file) {
-        printf("⚠️  File '%s' not found. Continuing without preloaded passengers.\n", filename);
+        printf("[WARNING] File '%s' not found. Continuing without preloaded passengers.\n", filename);
         return;
     }
 
@@ -413,7 +413,7 @@ void loadPassengers(const char* filename, Queue* arrivals, Queue* departures, Qu
     }
 
     fclose(file);
-    printf("✓ Passengers loaded successfully from %s\n", filename);
+    printf("[OK] Passengers loaded successfully from %s\n", filename);
 }
 
 int countPassengers(Flight* f) {
@@ -436,20 +436,20 @@ void removePassenger(Flight* f, const char* passport) {
             else prev->next = current->next;
             if (current == f->last) f->last = prev;
             free(current);
-            printf("✓ Passenger with passport %s removed.\n", passport);
+            printf("[OK] Passenger with passport %s removed.\n", passport);
             return;
         }
         prev = current;
         current = current->next;
     }
-    printf("❌ Passenger with passport %s not found.\n", passport);
+    printf("[ERROR] Passenger with passport %s not found.\n", passport);
 }
 
 void showMenu() {
     printf("\n");
-    printf("╔═══════════════════════════════════════════╗\n");
-    printf("║       AIRPORT MANAGEMENT SYSTEM          ║\n");
-    printf("╚═══════════════════════════════════════════╝\n");
+    printf("==========================================\n");
+    printf("    AIRPORT MANAGEMENT SYSTEM\n");
+    printf("==========================================\n");
     printf("1.  Add a flight\n");
     printf("2.  Add passenger to first flight\n");
     printf("3.  Land a flight (Emergency priority)\n");
@@ -465,6 +465,48 @@ void showMenu() {
     printf("Choose an option (1-12): ");
 }
 
+// ============================================
+// MEMORY CLEANUP FUNCTIONS
+// ============================================
+
+// Frees all passengers linked list in a flight
+void cleanupPassengers(Flight* f) {
+    if (f == NULL) return;
+    Passenger* current = f->header;
+    while (current != NULL) {
+        Passenger* temp = current;
+        current = current->next;
+        free(temp);
+    }
+}
+
+// Frees all flights in a queue
+void cleanupQueue(Queue* q) {
+    if (q == NULL || q->items == NULL) return;
+    
+    while (!isEmpty(q)) {
+        Flight* f = dequeue(q);
+        if (f != NULL) {
+            cleanupPassengers(f);
+            free(f);
+        }
+    }
+    free(q->items);
+}
+
+// Main cleanup function - call before exit
+void cleanupAllResources(Queue* arrivals, Queue* departures, Queue* emergencies,
+                         Queue* landed, Queue* departed, Queue* cancelled) {
+    printf("\n[INFO] Cleaning up resources...\n");
+    cleanupQueue(arrivals);
+    cleanupQueue(departures);
+    cleanupQueue(emergencies);
+    cleanupQueue(landed);
+    cleanupQueue(departed);
+    cleanupQueue(cancelled);
+    printf("[OK] All resources freed successfully.\n");
+}
+
 int main() {
     Queue arrivals = createQueue(100);
     Queue departures = createQueue(100);
@@ -473,9 +515,9 @@ int main() {
     Queue departed = createQueue(100);
     Queue cancelled = createQueue(100);
 
-    printf("╔═══════════════════════════════════════════╗\n");
-    printf("║  Loading Airport System Data...          ║\n");
-    printf("╚═══════════════════════════════════════════╝\n");
+    printf("==========================================\n");
+    printf("  Loading Airport System Data...\n");
+    printf("==========================================\n");
 
     loadFlights("flights.txt", &arrivals, &departures, &emergencies);
     loadPassengers("passengers.txt", &arrivals, &departures, &emergencies);
@@ -506,13 +548,13 @@ int main() {
                 else if (state == DEPARTURE) enqueue(&departures, f);
                 else enqueue(&emergencies, f);
 
-                printf("✓ Flight %s added successfully!\n", id);
+                printf("[OK] Flight %s added successfully!\n", id);
                 break;
             }
 
             case 2: {
                 if (isEmpty(&arrivals)) {
-                    printf("❌ No arrival flights available.\n");
+                    printf("[ERROR] No arrival flights available.\n");
                     break;
                 }
                 
@@ -521,7 +563,7 @@ int main() {
                 char* passport = getValidPassport();
 
                 addPassenger(arrivals.items[arrivals.front], name, passport);
-                printf("✓ Passenger %s added to flight %s.\n",
+                printf("[OK] Passenger %s added to flight %s.\n",
                        name, arrivals.items[arrivals.front]->id);
                 break;
             }
@@ -533,19 +575,19 @@ int main() {
                 // Emergency flights have priority
                 if (!isEmpty(&emergencies)) {
                     f = dequeue(&emergencies);
-                    printf("✓ Emergency flight prioritized!\n");
+                    printf("[OK] Emergency flight prioritized!\n");
                 } else if (!isEmpty(&arrivals)) {
                     f = dequeue(&arrivals);
-                    printf("✓ Regular arrival flight landing.\n");
+                    printf("[OK] Regular arrival flight landing.\n");
                 } else {
-                    printf("❌ No flights available to land.\n");
+                    printf("[ERROR] No flights available to land.\n");
                     break;
                 }
                 
                 if (f != NULL) {
                     f->status = LANDED;
                     enqueue(&landed, f);
-                    printf("✓ Flight %s has LANDED.\n", f->id);
+                    printf("[OK] Flight %s has LANDED.\n", f->id);
                 }
                 break;
             }
@@ -553,35 +595,35 @@ int main() {
             case 4: {
                 printf("\n--- Depart Flight ---\n");
                 if (isEmpty(&departures)) {
-                    printf("❌ No departure flights available.\n");
+                    printf("[ERROR] No departure flights available.\n");
                     break;
                 }
                 
                 Flight* f = dequeue(&departures);
                 f->status = DEPARTED;
                 enqueue(&departed, f);
-                printf("✓ Flight %s has DEPARTED.\n", f->id);
+                printf("[OK] Flight %s has DEPARTED.\n", f->id);
                 break;
             }
 
             case 5: {
                 printf("\n--- Cancel Flight ---\n");
                 if (isEmpty(&arrivals)) {
-                    printf("❌ No arrival flights to cancel.\n");
+                    printf("[ERROR] No arrival flights to cancel.\n");
                     break;
                 }
                 
                 Flight* f = dequeue(&arrivals);
                 f->status = CANCELLED;
                 enqueue(&cancelled, f);
-                printf("✓ Flight %s has been CANCELLED.\n", f->id);
+                printf("[OK] Flight %s has been CANCELLED.\n", f->id);
                 break;
             }
 
             case 6: {
-                printf("\n╔════════════════════════════╗\n");
-                printf("║     ALL FLIGHTS STATUS      ║\n");
-                printf("╚════════════════════════════╝\n");
+                printf("\n==========================================\n");
+                printf("     ALL FLIGHTS STATUS\n");
+                printf("==========================================\n");
                 
                 printf("\n=== ACTIVE ARRIVALS (%d) ===\n", arrivals.size);
                 if (isEmpty(&arrivals)) {
@@ -667,7 +709,7 @@ int main() {
                 if (target) {
                     printFlightDetail(target);
                 } else {
-                    printf("❌ Flight %s not found.\n", searchID);
+                    printf("[ERROR] Flight %s not found.\n", searchID);
                 }
                 break;
             }
@@ -700,7 +742,7 @@ int main() {
                     printf("Passengers on Flight %s (%d total):\n", searchID, countPassengers(target));
                     printPassengers(target);
                 } else {
-                    printf("❌ Flight %s not found.\n", searchID);
+                    printf("[ERROR] Flight %s not found.\n", searchID);
                 }
                 break;
             }
@@ -724,9 +766,9 @@ int main() {
                     char* name = getValidName();
                     char* passport = getValidPassport();
                     addPassenger(target, name, passport);
-                    printf("✓ Passenger %s added to flight %s.\n", name, searchID);
+                    printf("[OK] Passenger %s added to flight %s.\n", name, searchID);
                 } else {
-                    printf("❌ Flight %s not found or has already departed/landed.\n", searchID);
+                    printf("[ERROR] Flight %s not found or has already departed/landed.\n", searchID);
                 }
                 break;
             }
@@ -759,15 +801,15 @@ int main() {
                     char* passport = getValidPassport();
                     removePassenger(target, passport);
                 } else {
-                    printf("❌ Flight %s not found.\n", searchID);
+                    printf("[ERROR] Flight %s not found.\n", searchID);
                 }
                 break;
             }
 
             case 11: {
-                printf("\n╔════════════════════════════╗\n");
-                printf("║  ALL FLIGHT STATUSES       ║\n");
-                printf("╚════════════════════════════╝\n");
+                printf("\n==========================================\n");
+                printf("  ALL FLIGHT STATUSES\n");
+                printf("==========================================\n");
                 
                 const char* statusStr[] = {"ACTIVE", "LANDED", "DEPARTED", "CANCELLED"};
                 const char* stateStr[] = {"ARRIVAL", "DEPARTURE", "EMERGENCY"};
@@ -841,15 +883,18 @@ int main() {
             }
 
             case 12:
-                printf("\n╔════════════════════════════╗\n");
-                printf("║  Exiting Program...        ║\n");
-                printf("║  Thank you for using the   ║\n");
-                printf("║  Airport System!           ║\n");
-                printf("╚════════════════════════════╝\n\n");
+                printf("\n==========================================\n");
+                printf("  Exiting Program...\n");
+                printf("  Thank you for using the Airport System!\n");
+                printf("==========================================\n\n");
+                
+                // CALL CLEANUP FUNCTION BEFORE EXIT - EMPTY ALL MEMORY
+                cleanupAllResources(&arrivals, &departures, &emergencies,
+                                   &landed, &departed, &cancelled);
                 break;
 
             default:
-                printf("❌ Invalid choice. Please try again.\n");
+                printf("[ERROR] Invalid choice. Please try again.\n");
         }
     } while (choice != 12);
 
