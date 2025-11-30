@@ -27,7 +27,9 @@ typedef struct Flight {
 } Flight;
 
 typedef struct Queue {
-    Flight** items;
+     /* opaque pointer to an allocated array of pointers (internal storage)
+         access via queue_get/queue_set helpers so callers don't need to manipulate the raw buffer */
+    void* items;
     int front;
     int rear;
     int size;
@@ -36,12 +38,28 @@ typedef struct Queue {
 
 Queue createQueue(int capacity) {
     Queue q;
-    q.items = (Flight**)malloc(sizeof(Flight*) * capacity);
+    q.items = malloc(sizeof(Flight*) * capacity);
     q.front = 0;
     q.rear = -1;
     q.size = 0;
     q.capacity = capacity;
     return q;
+}
+
+// Helper accessors to keep the items implementation opaque
+static Flight* queue_get(const Queue* q, int index) {
+    if (!q || !q->items) return NULL;
+    /* read pointer-sized element without using a pointer-to-pointer variable */
+    void* ptr = NULL;
+    memcpy(&ptr, (char*)q->items + (size_t)index * sizeof(void*), sizeof(void*));
+    return (Flight*)ptr;
+}
+
+static void queue_set(Queue* q, int index, Flight* f) {
+    if (!q || !q->items) return;
+    /* write pointer-sized element into the buffer */
+    void* value = (void*)f;
+    memcpy((char*)q->items + (size_t)index * sizeof(void*), &value, sizeof(void*));
 }
 
 int isEmpty(Queue* q) {
@@ -58,13 +76,13 @@ void enqueue(Queue* q, Flight* f) {
         return;
     }
     q->rear = (q->rear + 1) % q->capacity;
-    q->items[q->rear] = f;
+    queue_set(q, q->rear, f);
     q->size++;
 }
 
 Flight* dequeue(Queue* q) {
     if (isEmpty(q)) return NULL;
-    Flight* f = q->items[q->front];
+    Flight* f = queue_get(q, q->front);
     q->front = (q->front + 1) % q->capacity;
     q->size--;
     return f;
@@ -147,12 +165,13 @@ int isValidTime(const char* time) {
 }
 
 int isValidFlightID(const char* id) {
-    if (strlen(id) < 3 || strlen(id) > 10) return 0;
-    
-    for (int i = 0; i < strlen(id); i++) {
-        if (!isalnum(id[i])) return 0;
+    size_t len = strlen(id);
+    if (len < 3 || len > 10) return 0;
+
+    for (size_t i = 0; i < len; ++i) {
+        if (!isalnum((unsigned char)id[i])) return 0;
     }
-    
+
     return 1;
 }
 
@@ -170,18 +189,41 @@ int isValidPassport(const char* passport) {
 }
 
 int isValidName(const char* name) {
-    if (strlen(name) < 2 || strlen(name) > 63) return 0;
-    
-    for (int i = 0; i < strlen(name); i++) {
-        if (!isalpha(name[i]) && name[i] != ' ') return 0;
+    size_t len = strlen(name);
+    if (len < 2 || len > 63) return 0;
+
+    for (size_t i = 0; i < len; ++i) {
+        if (!isalpha((unsigned char)name[i]) && name[i] != ' ') return 0;
     }
-    
+
     return 1;
 }
 
 // convert to lower case
 void toLowerInPlace(char *s) {
     for (size_t i = 0; s && s[i]; ++i) s[i] = (char)tolower((unsigned char)s[i]);
+}
+
+// trim leading and trailing whitespace in-place
+void trim(char *s) {
+    if (s == NULL) return;
+
+    // trim leading
+    char *start = s;
+    while (*start && isspace((unsigned char)*start)) start++;
+
+    if (start != s) {
+        memmove(s, start, strlen(start) + 1);
+    }
+
+    // trim trailing
+    size_t len = strlen(s);
+    if (len == 0) return;
+    char *end = s + (len - 1);
+    while (end >= s && isspace((unsigned char)*end)) {
+        *end = '\0';
+        --end;
+    }
 }
 
 char* getValidDate() {
@@ -426,14 +468,14 @@ void loadPassengers(const char* filename, Queue* arrivals, Queue* departures, Qu
         Flight* target = NULL;
 
         for (int i = 0; i < arrivals->size; i++)
-            if (strcmp(arrivals->items[(arrivals->front + i) % arrivals->capacity]->id, flightID) == 0)
-                target = arrivals->items[(arrivals->front + i) % arrivals->capacity];
+            if (strcmp(queue_get(arrivals, (arrivals->front + i) % arrivals->capacity)->id, flightID) == 0)
+                target = queue_get(arrivals, (arrivals->front + i) % arrivals->capacity);
         for (int i = 0; i < departures->size; i++)
-            if (strcmp(departures->items[(departures->front + i) % departures->capacity]->id, flightID) == 0)
-                target = departures->items[(departures->front + i) % departures->capacity];
+            if (strcmp(queue_get(departures, (departures->front + i) % departures->capacity)->id, flightID) == 0)
+                target = queue_get(departures, (departures->front + i) % departures->capacity);
         for (int i = 0; i < emergencies->size; i++)
-            if (strcmp(emergencies->items[(emergencies->front + i) % emergencies->capacity]->id, flightID) == 0)
-                target = emergencies->items[(emergencies->front + i) % emergencies->capacity];
+            if (strcmp(queue_get(emergencies, (emergencies->front + i) % emergencies->capacity)->id, flightID) == 0)
+                target = queue_get(emergencies, (emergencies->front + i) % emergencies->capacity);
 
         if (target) {
             addPassenger(target, name, passport);
@@ -556,7 +598,7 @@ Flight* removeFlightByID(Queue* q, const char* id) {
 Flight* findFlightInQueue(Queue* q, const char* id) {
     if (isEmpty(q)) return NULL;
     for (int i = 0; i < q->size; i++) {
-        Flight* f = q->items[(q->front + i) % q->capacity];
+        Flight* f = queue_get(q, (q->front + i) % q->capacity);
         if (strcmp(f->id, id) == 0) return f;
     }
     return NULL;
@@ -565,34 +607,26 @@ Flight* findFlightInQueue(Queue* q, const char* id) {
 // find flite across queues
 Flight* findFlightAcross(const char* id,
                          Queue* arrivals, Queue* departures, Queue* emergencies,
-                         Queue* landed, Queue* departed, Queue* cancelled,
-                         Queue** outQueue) {
+                         Queue* landed, Queue* departed, Queue* cancelled) {
     Flight* f = NULL;
     if (arrivals && (f = findFlightInQueue(arrivals, id))) {
-        if (outQueue) *outQueue = arrivals;
         return f;
     }
     if (departures && (f = findFlightInQueue(departures, id))) {
-        if (outQueue) *outQueue = departures;
         return f;
     }
     if (emergencies && (f = findFlightInQueue(emergencies, id))) {
-        if (outQueue) *outQueue = emergencies;
         return f;
     }
     if (landed && (f = findFlightInQueue(landed, id))) {
-        if (outQueue) *outQueue = landed;
         return f;
     }
     if (departed && (f = findFlightInQueue(departed, id))) {
-        if (outQueue) *outQueue = departed;
         return f;
     }
     if (cancelled && (f = findFlightInQueue(cancelled, id))) {
-        if (outQueue) *outQueue = cancelled;
         return f;
     }
-    if (outQueue) *outQueue = NULL;
     return NULL;
 }
 
@@ -694,7 +728,7 @@ int main() {
                     searchID = getValidFlightID();
                     // search active queues
                     target = findFlightAcross(searchID, &arrivals, &departures, &emergencies,
-                                              NULL, NULL, NULL, NULL);
+                                              NULL, NULL, NULL);
                     if (!target) {
                         printf("[ERROR] Flight %s not found or not available for adding passengers. Please try again.\n", searchID);
                     }
@@ -807,7 +841,7 @@ int main() {
                     printf("  No active arrival flights.\n");
                 } else {
                     for (int i = 0; i < arrivals.size; i++) {
-                        printFlightDetail(arrivals.items[(arrivals.front + i) % arrivals.capacity]);
+                        printFlightDetail(queue_get(&arrivals, (arrivals.front + i) % arrivals.capacity));
                     }
                 }
 
@@ -816,7 +850,7 @@ int main() {
                     printf("  No active departure flights.\n");
                 } else {
                     for (int i = 0; i < departures.size; i++) {
-                        printFlightDetail(departures.items[(departures.front + i) % departures.capacity]);
+                        printFlightDetail(queue_get(&departures, (departures.front + i) % departures.capacity));
                     }
                 }
 
@@ -825,7 +859,7 @@ int main() {
                     printf("  No active emergency flights.\n");
                 } else {
                     for (int i = 0; i < emergencies.size; i++) {
-                        printFlightDetail(emergencies.items[(emergencies.front + i) % emergencies.capacity]);
+                        printFlightDetail(queue_get(&emergencies, (emergencies.front + i) % emergencies.capacity));
                     }
                 }
 
@@ -834,7 +868,7 @@ int main() {
                     printf("  No landed flights.\n");
                 } else {
                     for (int i = 0; i < landed.size; i++) {
-                        printFlightDetail(landed.items[(landed.front + i) % landed.capacity]);
+                        printFlightDetail(queue_get(&landed, (landed.front + i) % landed.capacity));
                     }
                 }
 
@@ -843,7 +877,7 @@ int main() {
                     printf("  No departed flights.\n");
                 } else {
                     for (int i = 0; i < departed.size; i++) {
-                        printFlightDetail(departed.items[(departed.front + i) % departed.capacity]);
+                        printFlightDetail(queue_get(&departed, (departed.front + i) % departed.capacity));
                     }
                 }
 
@@ -852,7 +886,7 @@ int main() {
                     printf("  No cancelled flights.\n");
                 } else {
                     for (int i = 0; i < cancelled.size; i++) {
-                        printFlightDetail(cancelled.items[(cancelled.front + i) % cancelled.capacity]);
+                        printFlightDetail(queue_get(&cancelled, (cancelled.front + i) % cancelled.capacity));
                     }
                 }
                 break;
@@ -866,7 +900,7 @@ int main() {
                 do {
                     searchID = getValidFlightID();
                     target = findFlightAcross(searchID, &arrivals, &departures, &emergencies,
-                                              &landed, &departed, &cancelled, NULL);
+                                              &landed, &departed, &cancelled);
                     if (!target) {
                         printf("[ERROR] Flight %s not found. Please try again.\n", searchID);
                     }
@@ -884,7 +918,7 @@ int main() {
                 do {
                     searchID = getValidFlightID();
                     target = findFlightAcross(searchID, &arrivals, &departures, &emergencies,
-                                              &landed, &departed, &cancelled, NULL);
+                                              &landed, &departed, &cancelled);
                     if (!target) {
                         printf("[ERROR] Flight %s not found. Please try again.\n", searchID);
                     }
@@ -903,7 +937,7 @@ int main() {
                 do {
                     searchID = getValidFlightID();
                     target = findFlightAcross(searchID, &arrivals, &departures, &emergencies,
-                                              NULL, NULL, NULL, NULL);
+                                              NULL, NULL, NULL);
                     if (!target) {
                         printf("[ERROR] Flight %s not found or not available for adding passengers. Please try again.\n", searchID);
                     }
@@ -926,7 +960,7 @@ int main() {
                 do {
                     searchID = getValidFlightID();
                     target = findFlightAcross(searchID, &arrivals, &departures, &emergencies,
-                                              &landed, &departed, &cancelled, NULL);
+                                              &landed, &departed, &cancelled);
                     if (!target) {
                         printf("[ERROR] Flight %s not found. Please try again.\n", searchID);
                     }
@@ -954,8 +988,7 @@ int main() {
                         searchID = getValidFlightID();
                         target = findFlightAcross(searchID,
                                                   &arrivals, &departures, &emergencies,
-                                                  &landed, &departed, &cancelled,
-                                                  NULL);
+                                                  &landed, &departed, &cancelled);
                         if (!target) {
                             printf("[ERROR] Flight %s not found. Please try again.\n", searchID);
                         }
